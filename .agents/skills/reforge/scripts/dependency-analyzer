@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Reforge: Dependency Analyzer Script
+# Parses dependency files and detects potentially unused packages.
+# Usage: bash scripts/dependency-analyzer [project_path]
+# Output: YAML report to stdout
+
+set -euo pipefail
+
+PROJECT_PATH="${1:-.}"
+cd "$PROJECT_PATH"
+
+echo "# Dependency Analysis"
+echo ""
+
+# --- Flutter/Dart ---
+if [ -f "pubspec.yaml" ]; then
+  echo "## Flutter Dependencies"
+  echo ""
+
+  # Extract dependencies
+  echo "declared_dependencies:"
+  DEPS=$(awk '/^dependencies:/,/^[a-z]/' pubspec.yaml | grep -E "^\s+\w+:" | sed 's/:.*//' | tr -d ' ')
+  for dep in $DEPS; do
+    # Check if actually imported in lib/
+    IMPORTS=$(grep -r "import.*package:$dep" lib/ 2>/dev/null | wc -l | tr -d ' ')
+    USED="false"
+    [ "$IMPORTS" -gt 0 ] && USED="true"
+    echo "  - name: $dep"
+    echo "    imports_found: $IMPORTS"
+    echo "    likely_used: $USED"
+  done
+  echo ""
+
+  # Dev dependencies
+  echo "dev_dependencies:"
+  DEVDEPS=$(awk '/^dev_dependencies:/,/^[a-z]/' pubspec.yaml | grep -E "^\s+\w+:" | sed 's/:.*//' | tr -d ' ')
+  for dep in $DEVDEPS; do
+    echo "  - name: $dep"
+  done
+  echo ""
+fi
+
+# --- Node.js/React Native ---
+if [ -f "package.json" ]; then
+  echo "## Node.js Dependencies"
+  echo ""
+
+  echo "dependencies:"
+  node -e "
+    const p = require('./package.json');
+    const deps = p.dependencies || {};
+    Object.keys(deps).forEach(d => {
+      console.log('  - name: ' + d);
+      console.log('    version: ' + deps[d]);
+    });
+  " 2>/dev/null
+  echo ""
+
+  echo "devDependencies:"
+  node -e "
+    const p = require('./package.json');
+    const deps = p.devDependencies || {};
+    Object.keys(deps).forEach(d => {
+      console.log('  - name: ' + d);
+      console.log('    version: ' + deps[d]);
+    });
+  " 2>/dev/null
+  echo ""
+
+  # Check for unused imports
+  echo "## Potential Unused Dependencies"
+  echo ""
+  node -e "
+    const p = require('./package.json');
+    const deps = Object.keys(p.dependencies || {});
+    deps.forEach(d => {
+      try {
+        const count = require('child_process')
+          .execSync('grep -r \"' + d + '\" src/ lib/ app/ --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.jsx\" 2>/dev/null | wc -l')
+          .toString().trim();
+        if (parseInt(count) === 0) {
+          console.log('  - name: ' + d);
+          console.log('    status: possibly_unused');
+        }
+      } catch(e) {}
+    });
+  " 2>/dev/null
+  echo ""
+fi
+
+# --- Android ---
+if [ -f "app/build.gradle" ] || [ -f "app/build.gradle.kts" ]; then
+  echo "## Android Dependencies"
+  echo ""
+  GRADLE_FILE="app/build.gradle"
+  [ -f "app/build.gradle.kts" ] && GRADLE_FILE="app/build.gradle.kts"
+
+  echo "dependencies:"
+  grep -E "implementation|api|compileOnly|testImplementation|androidTestImplementation" "$GRADLE_FILE" 2>/dev/null | \
+    sed 's/.*implementation/  - implementation/' | \
+    sed 's/.*api/  - api/' | \
+    sed 's/.*compileOnly/  - compileOnly/' | \
+    sed 's/.*testImplementation/  - testImplementation/' | \
+    head -30
+  echo ""
+fi
+
+# --- iOS ---
+if [ -f "ios/Podfile" ]; then
+  echo "## iOS Dependencies (CocoaPods)"
+  echo ""
+  echo "pods:"
+  grep -E "^\s*pod\s" ios/Podfile 2>/dev/null | sed "s/.*pod '/  - /" | sed "s/'.*//" | head -20
+  echo ""
+fi
+
+echo "# Analysis complete."

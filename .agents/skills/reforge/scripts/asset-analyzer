@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Reforge: Asset Analyzer Script
+# Catalogs assets, images, fonts, and localization.
+# Usage: bash scripts/asset-analyzer [project_path]
+# Output: YAML report to stdout
+
+set -euo pipefail
+
+PROJECT_PATH="${1:-.}"
+cd "$PROJECT_PATH"
+
+echo "# Asset Analysis"
+echo ""
+
+# --- Images ---
+echo "## Images"
+echo ""
+echo "image_files:"
+find . -type f \( \
+  -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.gif" \
+  -o -name "*.svg" -o -name "*.webp" -o -name "*.ico" \
+  -o -name "*.png" -o -name "@2x.png" -o -name "@3x.png" \
+\) 2>/dev/null | \
+  grep -v node_modules | grep -v .dart_tool | grep -v build/ | \
+  sed 's/^/  - /' | \
+  sort | head -50
+echo ""
+
+IMAGE_COUNT=$(find . -type f \( \
+  -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.gif" \
+  -o -name "*.svg" -o -name "*.webp" \
+\) 2>/dev/null | grep -v node_modules | grep -v .dart_tool | grep -v build/ | wc -l | tr -d ' ')
+echo "  total_images: $IMAGE_COUNT"
+echo ""
+
+# --- Fonts ---
+echo "## Fonts"
+echo ""
+echo "font_files:"
+find . -type f \( \
+  -name "*.ttf" -o -name "*.otf" -o -name "*.woff" -o -name "*.woff2" \
+\) 2>/dev/null | \
+  grep -v node_modules | grep -v build/ | \
+  sed 's/^/  - /' | \
+  sort | head -20
+echo ""
+
+# Check Flutter font config
+if [ -f "pubspec.yaml" ]; then
+  echo "flutter_font_config:"
+  awk '/fonts:/,/^[a-z]/' pubspec.yaml 2>/dev/null | head -20 | sed 's/^/  /'
+  echo ""
+fi
+
+# --- Localization ---
+echo "## Localization"
+echo ""
+
+# Flutter l10n
+if [ -d "lib/l10n" ] || [ -f "l10n.yaml" ]; then
+  echo "approach: flutter_l10n"
+  echo "arb_files:"
+  find lib/l10n/ -name "*.arb" 2>/dev/null | sed 's/^/  - /' | head -10
+  LANG_COUNT=$(find lib/l10n/ -name "*.arb" 2>/dev/null | wc -l | tr -d ' ')
+  echo "  language_count: $LANG_COUNT"
+fi
+
+# React Native i18n
+if grep -q "i18n\|react-intl\|i18next\|expo-localization" package.json 2>/dev/null; then
+  echo "approach: i18n_library"
+  echo "translation_files:"
+  find . -path "*/locales/*" -o -path "*/translations/*" -o -path "*/i18n/*" 2>/dev/null | \
+    grep -v node_modules | sed 's/^/  - /' | head -10
+fi
+
+# Android strings
+if [ -f "app/src/main/res/values/strings.xml" ]; then
+  echo "approach: android_strings"
+  STRING_COUNT=$(grep -c "<string " app/src/main/res/values/strings.xml 2>/dev/null || echo 0)
+  echo "  string_count: $STRING_COUNT"
+  echo "  languages:"
+  find app/src/main/res/ -name "strings.xml" -not -path "*/values/strings.xml" 2>/dev/null | \
+    sed 's|.*/values-||;s|/strings.xml||' | \
+    sed 's/^/    - /' | head -10
+fi
+
+echo ""
+
+# --- Animations ---
+echo "## Animations"
+echo ""
+echo "lottie_files:"
+find . -name "*.json" -path "*anim*" -o -name "*.json" -path "*lottie*" 2>/dev/null | \
+  grep -v node_modules | sed 's/^/  - /' | head -10
+
+echo "rive_files:"
+find . -name "*.riv" 2>/dev/null | grep -v node_modules | sed 's/^/  - /' | head -10
+
+echo "animation_controllers:"
+find lib/ -name "*animation*" -o -name "*controller*" 2>/dev/null | \
+  grep -i anim | sed 's/^/  - /' | head -10
+
+echo ""
+
+# --- Configuration Files ---
+echo "## Configuration"
+echo ""
+echo "config_files:"
+find . -maxdepth 2 -type f \( \
+  -name "*.env" -o -name ".env.*" -o -name "*.config.*" \
+  -o -name "firebase.json" -o -name "google-services.json" \
+  -o -name "GoogleService-Info.plist" \
+  -o -name "app.json" -o -name "app.config.*" \
+\) 2>/dev/null | grep -v node_modules | sed 's/^/  - /' | head -10
+
+echo ""
+echo "# Asset analysis complete."

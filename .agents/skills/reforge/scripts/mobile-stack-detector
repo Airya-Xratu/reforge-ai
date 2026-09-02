@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# Reforge: Mobile Stack Detector Script
+# Identifies mobile framework, platform config, permissions, and key files.
+# Usage: bash scripts/mobile-stack-detector [project_path]
+# Output: YAML report to stdout
+
+set -euo pipefail
+
+PROJECT_PATH="${1:-.}"
+cd "$PROJECT_PATH"
+
+echo "# Mobile Stack Detection"
+echo ""
+
+# --- Detect Framework ---
+FRAMEWORK="unknown"
+if [ -f "pubspec.yaml" ]; then
+  FRAMEWORK="flutter"
+elif [ -f "app.json" ] || [ -f "app.config.js" ] || [ -f "app.config.ts" ]; then
+  if grep -q '"expo"' package.json 2>/dev/null; then
+    FRAMEWORK="expo"
+  elif grep -q '"react-native"' package.json 2>/dev/null; then
+    FRAMEWORK="react_native"
+  fi
+elif [ -f "package.json" ] && grep -q '"react-native"' package.json 2>/dev/null; then
+  FRAMEWORK="react_native"
+elif [ -f "app/build.gradle" ] || [ -f "app/build.gradle.kts" ]; then
+  FRAMEWORK="android_native"
+elif find . -name "*.xcodeproj" -maxdepth 2 2>/dev/null | head -1 | grep -q .; then
+  FRAMEWORK="ios_native"
+fi
+
+echo "framework: $FRAMEWORK"
+echo ""
+
+# --- Flutter Detection ---
+if [ "$FRAMEWORK" = "flutter" ]; then
+  echo "flutter:"
+  
+  # pubspec info
+  if [ -f "pubspec.yaml" ]; then
+    echo "  name: $(grep '^name:' pubspec.yaml | head -1 | sed 's/name: //' | tr -d "'\"')"
+    echo "  version: $(grep '^version:' pubspec.yaml | head -1 | sed 's/version: //' | tr -d "'\"')"
+    
+    # Key dependencies
+    echo "  key_dependencies:"
+    for dep in provider flutter_bloc riverpod get_it go_router auto_route dio http hive sqflite shared_preferences firebase_core; do
+      if grep -q "$dep" pubspec.yaml 2>/dev/null; then
+        echo "    - $dep"
+      fi
+    done
+    
+    # Assets
+    echo "  assets:"
+    awk '/assets:/,/^[a-z]/' pubspec.yaml 2>/dev/null | grep "^\s*-" | sed 's/.*- /    - /' | head -10
+    
+    # Fonts
+    echo "  fonts:"
+    awk '/fonts:/,/^[a-z]/' pubspec.yaml 2>/dev/null | grep "family:" | sed 's/.*family: /    - /' | head -5
+  fi
+  
+  # Android config
+  if [ -d "android" ]; then
+    echo "  android:"
+    if [ -f "app/build.gradle" ]; then
+      echo "    min_sdk: $(grep 'minSdk' app/build.gradle | head -1 | grep -oP '\d+' | head -1)"
+      echo "    target_sdk: $(grep 'targetSdk' app/build.gradle | head -1 | grep -oP '\d+' | head -1)"
+      echo "    compile_sdk: $(grep 'compileSdk' app/build.gradle | head -1 | grep -oP '\d+' | head -1)"
+    fi
+    if [ -f "app/src/main/AndroidManifest.xml" ]; then
+      echo "    permissions:"
+      grep 'android.permission' app/src/main/AndroidManifest.xml 2>/dev/null | \
+        sed 's/.*name="//' | sed 's/".*//' | sed 's/^/      - /'
+    fi
+  fi
+  
+  # iOS config
+  if [ -d "ios" ]; then
+    echo "  ios:"
+    if [ -f "ios/Podfile" ]; then
+      echo "    deployment_target: $(grep 'platform :ios' ios/Podfile | grep -oP "[\d.]+" | head -1)"
+    fi
+    if [ -f "ios/Runner/Info.plist" ]; then
+      echo "    permissions:"
+      grep -A1 'UsageDescription' ios/Runner/Info.plist 2>/dev/null | \
+        grep string | sed 's/.*string//' | sed 's/<.*//' | sed 's/^/      - /'
+    fi
+  fi
+  
+  # Platform channels
+  echo "  platform_channels:"
+  grep -rn "MethodChannel\|EventChannel" lib/ 2>/dev/null | \
+    grep -oP "MethodChannel\('([^']+)'\)" | sed "s/MethodChannel('//;s/')//" | \
+    sort -u | sed 's/^/    - /'
+  
+  # Generated files
+  echo "  generated:"
+  find lib/ -name "*.g.dart" -o -name "*.freezed.dart" -o -name "*.gr.dart" -o -name "*.mocks.dart" 2>/dev/null | \
+    head -10 | sed 's/^/    - /'
+  
+  echo ""
+fi
+
+# --- React Native / Expo Detection ---
+if [ "$FRAMEWORK" = "react_native" ] || [ "$FRAMEWORK" = "expo" ]; then
+  echo "react_native:"
+  echo "  framework: $FRAMEWORK"
+  
+  if [ -f "package.json" ]; then
+    echo "  key_dependencies:"
+    for dep in @react-navigation/native @react-navigation/bottom-tabs @reduxjs/toolkit react-redux zustand mobx axios @tanstack/react-query expo-router expo-camera expo-notifications; do
+      if grep -q "$dep" package.json 2>/dev/null; then
+        echo "    - $dep"
+      fi
+    done
+  fi
+  
+  if [ -f "app.json" ]; then
+    echo "  expo_config:"
+    echo "    scheme: $(node -e "try{console.log(require('./app.json').expo?.scheme||'none')}catch(e){console.log('none')}" 2>/dev/null)"
+    echo "    plugins:"
+    node -e "try{const e=require('./app.json').expo?.plugins||[];e.forEach(p=>console.log('      - '+(typeof p==='string'?p:p[0])))}catch(e){}" 2>/dev/null
+  fi
+  
+  # Navigation detection
+  echo "  navigation:"
+  if [ -d "app" ] && [ -f "app/_layout.tsx" -o -f "app/_layout.ts" -o -f "app/_layout.js" ]; then
+    echo "    type: expo_router"
+    echo "    routes:"
+    find app/ -name "*.tsx" -o -name "*.ts" -o -name "*.js" 2>/dev/null | \
+      grep -v "_layout" | sed 's/^app\//      - \//' | sed 's/\.\(tsx\|ts\|js\)$//' | \
+      sed 's/\/index$//' | sort | head -15
+  elif grep -q "createStackNavigator\|@react-navigation" src/ app/ 2>/dev/null; then
+    echo "    type: react_navigation"
+  fi
+  
+  echo ""
+fi
+
+# --- Android Native Detection ---
+if [ "$FRAMEWORK" = "android_native" ]; then
+  echo "android_native:"
+  
+  GRADLE_FILE="app/build.gradle"
+  [ -f "app/build.gradle.kts" ] && GRADLE_FILE="app/build.gradle.kts"
+  
+  if [ -f "$GRADLE_FILE" ]; then
+    echo "  compile_sdk: $(grep -i 'compileSdk' "$GRADLE_FILE" | grep -oP '\d+' | head -1)"
+    echo "  min_sdk: $(grep -i 'minSdk' "$GRADLE_FILE" | grep -oP '\d+' | head -1)"
+    echo "  target_sdk: $(grep -i 'targetSdk' "$GRADLE_FILE" | grep -oP '\d+' | head -1)"
+    
+    echo "  key_dependencies:"
+    grep -E "implementation|api " "$GRADLE_FILE" 2>/dev/null | \
+      sed 's/.*implementation//' | sed 's/.*api//' | \
+      tr "'" '"' | grep -oP '"[^"]*"' | sed 's/"//g' | \
+      grep -v "^$" | head -15 | sed 's/^/    - /'
+  fi
+  
+  if [ -f "app/src/main/AndroidManifest.xml" ]; then
+    echo "  permissions:"
+    grep 'android.permission' app/src/main/AndroidManifest.xml 2>/dev/null | \
+      sed 's/.*name="//' | sed 's/".*//' | sort -u | sed 's/^/    - /'
+    
+    echo "  activities:"
+    grep 'android:name=' app/src/main/AndroidManifest.xml 2>/dev/null | \
+      grep -i activity -A1 | grep 'android:name=' | \
+      sed 's/.*android:name="//' | sed 's/".*//' | sed 's/^/    - /'
+  fi
+  
+  # Compose detection
+  if grep -q "setContent\|@Composable" app/src/main/java/ app/src/main/kotlin/ 2>/dev/null; then
+    echo "  ui: jetpack_compose"
+  else
+    echo "  ui: xml_layouts"
+  fi
+  
+  echo ""
+fi
+
+# --- iOS Native Detection ---
+if [ "$FRAMEWORK" = "ios_native" ]; then
+  echo "ios_native:"
+  
+  XCODE_PROJ=$(find . -name "*.xcodeproj" -maxdepth 2 2>/dev/null | head -1)
+  
+  if [ -f "ios/Podfile" ]; then
+    echo "  deployment_target: $(grep 'platform :ios' ios/Podfile | grep -oP "[\d.]+" | head -1)"
+    echo "  pods:"
+    grep -E "^\s*pod " ios/Podfile 2>/dev/null | sed "s/.*pod '/      - /" | sed "s/'.*//" | head -15
+  fi
+  
+  if [ -f "ios/Runner/Info.plist" ]; then
+    echo "  permissions:"
+    grep -A1 'UsageDescription' ios/Runner/Info.plist 2>/dev/null | \
+      grep string | sed 's/.*string//' | sed 's/<.*//' | sed 's/^/      - /'
+  fi
+  
+  # SwiftUI detection
+  if grep -rq "import SwiftUI" ios/ 2>/dev/null; then
+    echo "  ui: swiftui"
+  elif grep -rq "import UIKit" ios/ 2>/dev/null; then
+    echo "  ui: uikit"
+  fi
+  
+  echo ""
+fi
+
+echo "# Detection complete."

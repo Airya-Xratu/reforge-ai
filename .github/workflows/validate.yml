@@ -1,0 +1,83 @@
+name: Validate Repository Structure
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check root SKILL.md exists
+        run: test -f .agents/skills/reforge/SKILL.md
+
+      - name: Check all skill directories have SKILL.md
+        run: |
+          for dir in .agents/skills/reforge/skills/*/; do
+            if [ ! -f "${dir}SKILL.md" ]; then
+              echo "Missing SKILL.md in $dir"
+              exit 1
+            fi
+          done
+          echo "All skill directories have SKILL.md"
+
+      - name: Check SKILL.md frontmatter
+        run: |
+          for f in .agents/skills/reforge/SKILL.md .agents/skills/reforge/skills/*/SKILL.md; do
+            if ! head -1 "$f" | grep -q "^---"; then
+              echo "Missing frontmatter in $f"
+              exit 1
+            fi
+          done
+          echo "All SKILL.md files have frontmatter"
+
+      - name: Check project model schema exists
+        run: test -f .agents/skills/reforge/schemas/project-model.schema.yaml
+
+      - name: Validate YAML syntax
+        run: |
+          python3 -c "
+          import yaml, sys, glob
+          errors = []
+          for f in glob.glob('.agents/skills/reforge/schemas/*.yaml') + glob.glob('.agents/skills/reforge/examples/*.yaml'):
+              try:
+                  with open(f) as fh:
+                      yaml.safe_load(fh)
+              except Exception as e:
+                  errors.append(f'{f}: {e}')
+          if errors:
+              for e in errors:
+                  print(e)
+              sys.exit(1)
+          print('All YAML files valid')
+          "
+
+      - name: Check required root files
+        run: |
+          for f in README.md LICENSE CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md CHANGELOG.md AGENTS.md VISION.md ROADMAP.md; do
+            if [ ! -f "$f" ]; then
+              echo "Missing $f"
+              exit 1
+            fi
+          done
+          echo "All root files present"
+
+      - name: Check documentation structure
+        run: |
+          test -d docs/concepts
+          test -d docs/workflows
+          test -d docs/analyzers
+          echo "Documentation structure valid"
+
+      - name: Count skills
+        run: |
+          count=$(ls -d .agents/skills/reforge/skills/*/ | wc -l)
+          echo "Skills found: $count"
+          if [ "$count" -lt 20 ]; then
+            echo "Expected at least 20 skills"
+            exit 1
+          fi

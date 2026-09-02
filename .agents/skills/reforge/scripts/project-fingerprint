@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Reforge: Project Fingerprint Script
+# Detects framework, language, dependencies, and project structure.
+# Usage: bash scripts/project-fingerprint [project_path]
+# Output: YAML fingerprint to stdout
+
+set -euo pipefail
+
+PROJECT_PATH="${1:-.}"
+cd "$PROJECT_PATH"
+
+echo "project:"
+echo "  name: $(basename "$(pwd)")"
+echo "  type: unknown"
+echo "  framework: unknown"
+echo "  language: unknown"
+echo ""
+
+# --- Detect Language ---
+LANGUAGES=""
+[ -n "$(find . -maxdepth 3 -name "*.dart" -type f 2>/dev/null | head -1)" ] && LANGUAGES="${LANGUAGES}dart "
+[ -n "$(find . -maxdepth 3 -name "*.kt" -type f 2>/dev/null | head -1)" ] && LANGUAGES="${LANGUAGES}kotlin "
+[ -n "$(find . -maxdepth 3 -name "*.java" -type f 2>/dev/null | head -1)" ] && LANGUAGES="${LANGUAGES}java "
+[ -n "$(find . -maxdepth 3 -name "*.swift" -type f 2>/dev/null | head -1)" ] && LANGUAGES="${LANGUAGES}swift "
+[ -n "$(find . -maxdepth 3 -name "*.ts" -type f 2>/dev/null | head -1)" ] && LANGUAGES="${LANGUAGES}typescript "
+[ -n "$(find . -maxdepth 3 -name "*.js" -type f -not -path "*/node_modules/*" 2>/dev/null | head -1)" ] && LANGUAGES="${LANGUAGES}javascript "
+[ -n "$(find . -maxdepth 3 -name "*.py" -type f 2>/dev/null | head -1)" ] && LANGUAGES="${LANGUAGES}python "
+echo "  detected_languages: [${LANGUAGES%, }]"
+echo ""
+
+# --- Detect Framework ---
+if [ -f "pubspec.yaml" ]; then
+  echo "  framework: flutter"
+  echo "  type: mobile"
+  grep -E "^(  sdk:|  flutter:)" pubspec.yaml 2>/dev/null | head -5
+elif [ -f "package.json" ]; then
+  if grep -q "react-native" package.json 2>/dev/null; then
+    echo "  framework: react_native"
+    echo "  type: mobile"
+  elif grep -q "expo" package.json 2>/dev/null; then
+    echo "  framework: expo"
+    echo "  type: mobile"
+  elif grep -q "next" package.json 2>/dev/null; then
+    echo "  framework: nextjs"
+    echo "  type: web"
+  elif grep -q "vue" package.json 2>/dev/null; then
+    echo "  framework: vue"
+    echo "  type: web"
+  elif grep -q "react" package.json 2>/dev/null; then
+    echo "  framework: react"
+    echo "  type: web"
+  fi
+elif [ -f "build.gradle" ] || [ -f "build.gradle.kts" ]; then
+  echo "  framework: android_native"
+  echo "  type: mobile"
+elif [ -f "Cargo.toml" ]; then
+  echo "  framework: rust"
+  echo "  type: cli"
+elif [ -f "go.mod" ]; then
+  echo "  framework: go"
+  echo "  type: cli"
+elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+  echo "  framework: python"
+  echo "  type: cli"
+fi
+echo ""
+
+# --- Detect Project Structure ---
+echo "architecture:"
+if [ -d "lib/features" ] || [ -d "lib/src/features" ]; then
+  echo "  pattern: feature_first"
+elif [ -d "lib/data" ] || [ -d "lib/domain" ] || [ -d "lib/presentation" ]; then
+  echo "  pattern: clean"
+elif [ -d "src/features" ] || [ -d "src/modules" ]; then
+  echo "  pattern: feature_first"
+else
+  echo "  pattern: unknown"
+fi
+echo ""
+
+# --- Detect Dependencies ---
+echo "dependencies:"
+if [ -f "pubspec.yaml" ]; then
+  echo "  core:"
+  grep -E "^\s+\w+:" pubspec.yaml 2>/dev/null | grep -v "dev_dependencies" | head -20 | sed 's/^/    - /'
+elif [ -f "package.json" ]; then
+  echo "  core:"
+  node -e "const p=require('./package.json'); Object.keys(p.dependencies||{}).forEach(d=>console.log('    - '+d))" 2>/dev/null | head -20
+fi
+echo ""
+
+# --- Detect Platforms ---
+echo "platforms:"
+if [ -d "android" ]; then echo "  android: true"; else echo "  android: false"; fi
+if [ -d "ios" ]; then echo "  ios: true"; else echo "  ios: false"; fi
+if [ -d "web" ] || grep -q '"web"' package.json 2>/dev/null; then echo "  web: true"; else echo "  web: false"; fi
+echo ""
+
+# --- Detect Testing ---
+echo "testing:"
+if [ -d "test" ] || [ -d "__tests__" ] || [ -d "tests" ]; then echo "  present: true"; else echo "  present: false"; fi
+if [ -d "test" ] && [ -d "integration_test" ]; then echo "  integration: true"; else echo "  integration: false"; fi
+echo ""
+
+# --- Count Files ---
+echo "stats:"
+echo "  source_files: $(find . -name "*.dart" -o -name "*.kt" -o -name "*.java" -o -name "*.swift" -o -name "*.ts" -o -name "*.js" 2>/dev/null | grep -v node_modules | grep -v .dart_tool | wc -l | tr -d ' ')"
+echo "  test_files: $(find . -name "*_test.dart" -o -name "*_test.ts" -o -name "*.test.ts" -o -name "*.test.js" 2>/dev/null | grep -v node_modules | wc -l | tr -d ' ')"
+echo "  total_dependencies: $(grep -cE "^\s+\w+:" pubspec.yaml 2>/dev/null || node -e "console.log(Object.keys(require('./package.json').dependencies||{}).length)" 2>/dev/null || echo 0)"

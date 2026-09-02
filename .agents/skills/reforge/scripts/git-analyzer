@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Reforge: Git Analyzer Script
+# Extracts git history as evidence for analysis.
+# Usage: bash scripts/git-analyzer [project_path]
+# Output: YAML report to stdout
+
+set -euo pipefail
+
+PROJECT_PATH="${1:-.}"
+cd "$PROJECT_PATH"
+
+# Check if git repo
+if [ ! -d ".git" ]; then
+  echo "git_evidence:"
+  echo "  available: false"
+  echo "  reason: not_a_git_repository"
+  exit 0
+fi
+
+echo "git_evidence:"
+echo "  available: true"
+echo ""
+
+# --- Recent Changes (last 30 days) ---
+echo "  recent_changes:"
+git log --since="30 days ago" --pretty=format:'%h|%s|%ad' --date=short 2>/dev/null | \
+  head -30 | while IFS='|' read -r hash subject date; do
+    echo "    - hash: \"$hash\""
+    echo "      subject: \"$subject\""
+    echo "      date: \"$date\""
+  done
+echo ""
+
+# --- Most Frequently Changed Files ---
+echo "  frequent_files:"
+git log --pretty=format: --name-only 2>/dev/null | \
+  sort | uniq -c | sort -rn | head -20 | \
+  while read -r count file; do
+    [ -z "$file" ] && continue
+    echo "    - file: \"$file\""
+    echo "      change_count: $count"
+  done
+echo ""
+
+# --- Recently Deleted Files (possible dead code) ---
+echo "  recently_deleted:"
+git log --diff-filter=D --pretty=format:'%h' --name-only --since="90 days ago" 2>/dev/null | \
+  grep -v "^[a-f0-9]\{7\}$" | sort -u | head -15 | while read -r file; do
+    echo "    - file: \"$file\""
+  done
+echo ""
+
+# --- Abandoned Branches ---
+echo "  abandoned_branches:"
+git for-each-ref --format='%(refname:short) %(committerdate:short) %(subject)' refs/heads/ 2>/dev/null | \
+  sort -k2 | head -10 | while read -r branch date subject; do
+    echo "    - branch: \"$branch\""
+    echo "      last_commit: \"$date\""
+    echo "      subject: \"$subject\""
+  done
+echo ""
+
+# --- Feature Branch Patterns ---
+echo "  feature_branches:"
+git branch -r 2>/dev/null | grep -iE "(feature|feat|fix|bug|hotfix|release)" | \
+  sed 's/.*origin\///' | head -10 | while read -r branch; do
+    echo "    - \"$branch\""
+  done
+echo ""
+
+# --- Commit Frequency (instability indicator) ---
+echo "  file_churn:"
+echo "    # Files with most changes in last 90 days (instability signal)"
+git log --since="90 days ago" --pretty=format: --name-only 2>/dev/null | \
+  sort | uniq -c | sort -rn | head -10 | \
+  while read -r count file; do
+    [ -z "$file" ] && continue
+    # Only source files
+    case "$file" in
+      *.dart|*.kt|*.java|*.swift|*.ts|*.tsx|*.js|*.jsx)
+        echo "    - file: \"$file\""
+        echo "      changes_90d: $count"
+        ;;
+    esac
+  done
+echo ""
+
+# --- Authors (team size signal) ---
+echo "  contributors:"
+git shortlog -sn --no-merges 2>/dev/null | head -5 | while read -r count name; do
+  echo "    - name: \"$(echo "$name" | sed 's/^ *//')\""
+  echo "      commits: $count"
+done
+echo ""
+
+echo "# Git analysis complete."

@@ -1,0 +1,346 @@
+# Example: TaskMaster Project Model (excerpt)
+# Full project_model.yaml would be ~500+ lines
+
+fingerprint:
+  project:
+    name: "taskmaster"
+    type: mobile
+    framework: flutter
+    language: dart
+    framework_version: "3.22.0"
+    language_version: "3.4.0"
+  architecture:
+    pattern: feature_first
+    state_management: flutter_bloc
+    dependency_injection: get_it
+    navigation:
+      package: go_router
+      pattern: declarative
+  backend:
+    type: rest
+    auth_type: jwt
+  ui:
+    design_system: custom
+    theme: material3
+    dark_mode: supported
+  testing:
+    unit: true
+    widget: true
+    integration: true
+    e2e: false
+  platforms:
+    android: true
+    ios: true
+    web: false
+    desktop: false
+  stats:
+    source_files: 187
+    test_files: 42
+    total_dependencies: 28
+    total_screens: 12
+    total_features: 8
+  evidence:
+    - source: "pubspec.yaml"
+      type: config
+      detail: "Flutter project with BLoC, go_router, get_it"
+  confidence: HIGH
+
+features:
+  - id: "feature_001"
+    name: "Task Management"
+    category: core
+    evidence:
+      - source: "lib/features/tasks/"
+        type: code
+        detail: "Full feature directory with data/domain/presentation layers"
+      - source: "lib/core/router/routes.dart"
+        type: code
+        detail: "Routes: /tasks, /tasks/:id, /tasks/create"
+    confidence: HIGH
+    user_value: high
+    complexity: medium
+    maturity: complete
+    screens: ["screen_001", "screen_002", "screen_003"]
+    apis: ["/api/tasks"]
+    models: ["Task"]
+    dependencies: []
+    permissions: []
+
+  - id: "feature_002"
+    name: "Search"
+    category: core
+    evidence:
+      - source: "lib/features/search/"
+        type: code
+        detail: "Search feature with filter and sort"
+    confidence: HIGH
+    user_value: high
+    complexity: medium
+    maturity: complete
+    screens: ["screen_004"]
+    apis: ["/api/tasks/search"]
+    models: []
+    dependencies: ["feature_001"]
+    permissions: []
+
+  - id: "feature_003"
+    name: "Push Notifications"
+    category: secondary
+    evidence:
+      - source: "lib/services/notification_service.dart"
+        type: code
+        detail: "Notification service exists but only partially wired"
+      - source: "android/app/src/main/AndroidManifest.xml"
+        type: config
+        detail: "FCM permissions declared"
+    confidence: MEDIUM
+    user_value: medium
+    complexity: medium
+    maturity: partial
+    screens: []
+    apis: []
+    models: ["NotificationToken"]
+    dependencies: ["feature_001"]
+    permissions: ["notification"]
+
+screens:
+  - id: "screen_001"
+    name: "TaskListScreen"
+    file: "lib/features/tasks/presentation/screens/task_list_screen.dart"
+    purpose: "Display and manage task list with filtering"
+    type: full_page
+    feature_id: "feature_001"
+    entry_points:
+      - from: "launcher"
+        trigger: "app start"
+        route: "/tasks"
+    exit_points:
+      - to: "screen_002"
+        trigger: "task card tap"
+        type: action
+      - to: "screen_003"
+        trigger: "FAB tap"
+        type: action
+    layout: "AppBar + FilterChips + ListView + FAB"
+    components:
+      - type: "AppBar"
+        name: "TaskAppBar"
+        purpose: "Title + search/filter actions"
+        states: ["default"]
+      - type: "ListView"
+        name: "TaskListView"
+        purpose: "Scrollable task cards"
+        states: ["loading", "loaded", "empty", "error"]
+    data_fields:
+      - name: "tasks"
+        type: "List<Task>"
+        source: "TaskBloc"
+    actions:
+      - name: "create_task"
+        trigger: "FAB tap"
+        requires: "auth"
+        confirmation: false
+      - name: "complete_task"
+        trigger: "swipe right"
+        requires: "none"
+        confirmation: false
+    states: ["initial", "loading", "loaded", "empty", "error", "refreshing"]
+    permissions: []
+    evidence:
+      - source: "lib/features/tasks/presentation/screens/task_list_screen.dart"
+        type: code
+        detail: "BlocBuilder<TaskBloc, TaskState> with 6 state branches"
+    confidence: HIGH
+
+state_machines:
+  - screen_id: "screen_001"
+    state_model: "TaskListState (lib/features/tasks/presentation/bloc/task_bloc.dart)"
+    states:
+      - name: "initial"
+        description: "Screen just mounted"
+        ui_shown: "LoadingIndicator"
+        data: []
+      - name: "loading"
+        description: "Fetching tasks from API"
+        ui_shown: "LoadingIndicator"
+        data: []
+      - name: "loaded"
+        description: "Tasks ready for display"
+        ui_shown: "TaskCard list"
+        data: ["tasks: List<Task>"]
+      - name: "empty"
+        description: "No tasks match current filters"
+        ui_shown: "EmptyStateWidget with CTA"
+        data: []
+      - name: "error"
+        description: "API request failed"
+        ui_shown: "ErrorWidget with retry button"
+        data: ["error: String"]
+      - name: "refreshing"
+        description: "Pull-to-refresh active"
+        ui_shown: "Task list + RefreshIndicator"
+        data: ["tasks: List<Task>"]
+    transitions:
+      - from: "initial"
+        to: "loading"
+        trigger: "initState"
+      - from: "loading"
+        to: "loaded"
+        trigger: "TasksLoaded event"
+      - from: "loading"
+        to: "error"
+        trigger: "TaskError event"
+      - from: "loading"
+        to: "empty"
+        trigger: "TasksLoaded with empty list"
+      - from: "loaded"
+        to: "refreshing"
+        trigger: "pull to refresh"
+      - from: "error"
+        to: "loading"
+        trigger: "retry button tap"
+    edge_cases:
+      - scenario: "Network failure during initial load"
+        handling: "Error state with retry"
+        coverage: complete
+      - scenario: "Empty state after filtering"
+        handling: "Empty state with clear filters CTA"
+        coverage: complete
+      - scenario: "Token expiry mid-session"
+        handling: "Not handled — user sees generic error"
+        coverage: missing
+    evidence:
+      - source: "lib/features/tasks/presentation/bloc/task_bloc.dart"
+        type: code
+        detail: "6 states, 4 transitions defined"
+    confidence: HIGH
+
+product:
+  purpose: "Task management app for professionals who need to track tasks, contacts, and deals"
+  target_users:
+    - "Sales professionals managing client relationships"
+    - "Freelancers tracking project tasks"
+  personas:
+    - name: "Sales Rep"
+      description: "Manages 50+ active deals across multiple clients"
+      goals:
+        - "Quickly log tasks after calls"
+        - "See what's due today"
+        - "Track deal progress"
+      pain_points:
+        - "Forgetting to log follow-ups"
+        - "Losing context between meetings"
+      technical_level: medium
+      evidence:
+        - source: "lib/data/models/deal.dart"
+          type: code
+          detail: "Deal model with stage, value, contact fields"
+      confidence: HIGH
+  feature_hierarchy:
+    core: ["feature_001", "feature_002"]
+    secondary: ["feature_003"]
+    nice_to_have: []
+  evidence:
+    - source: "lib/data/models/"
+      type: code
+      detail: "Task, Contact, Deal models suggest CRM-like product"
+  confidence: HIGH
+
+product_dna:
+  interaction:
+    - task_oriented
+    - fast_completion
+    - swipe_actions
+  visual:
+    - professional
+    - data_dense
+    - color_coded_status
+  ux:
+    - progressive_disclosure
+    - low_friction
+    - undo_over_confirm
+  product:
+    - utility
+    - productivity
+  what_must_survive:
+    - "Speed — core flow is fast, don't add steps"
+    - "Swipe interactions — users expect swipe-to-act"
+    - "Color-coded status — visual scanning depends on it"
+    - "Data density — users want overview, not whitespace"
+  evidence: []
+  confidence: HIGH
+
+health:
+  architecture:
+    score: 75
+    evidence:
+      - "Clean feature-first boundaries — no cross-feature imports (HIGH)"
+      - "One circular dependency: auth ↔ profile (HIGH)"
+      - "BLoC consistent across features (HIGH)"
+    reasoning: "Strong structure with one circular dependency"
+  product:
+    score: 80
+    evidence:
+      - "Core features complete and functional (HIGH)"
+      - "Push notifications partially implemented (MEDIUM)"
+    reasoning: "Solid feature set, some features incomplete"
+  ux:
+    score: 65
+    evidence:
+      - "Error states present in 8/12 screens (MEDIUM)"
+      - "Empty states missing in 3 screens (HIGH)"
+      - "No accessibility labels found (HIGH)"
+    reasoning: "Good error handling but missing empty states and accessibility"
+  ui:
+    score: 70
+    evidence:
+      - "Custom design system with consistent tokens (HIGH)"
+      - "Dark mode supported (HIGH)"
+      - "Some hardcoded colors in older screens (MEDIUM)"
+    reasoning: "Good design system, minor inconsistencies in legacy screens"
+  maintainability:
+    score: 62
+    evidence:
+      - "12 TODO comments in lib/ (MEDIUM)"
+      - "3 deprecated API usages (MEDIUM)"
+      - "Good naming conventions (HIGH)"
+    reasoning: "Generally clean but accumulating tech debt"
+  testability:
+    score: 55
+    evidence:
+      - "42 test files for 187 source files (22% ratio) (MEDIUM)"
+      - "Integration tests present but thin (MEDIUM)"
+      - "Good mocking with mocktail (HIGH)"
+    reasoning: "Decent test foundation but coverage gaps"
+  documentation:
+    score: 40
+    evidence:
+      - "README exists but minimal (MEDIUM)"
+      - "No API documentation (HIGH)"
+      - "Code comments sparse (MEDIUM)"
+    reasoning: "Documentation is a significant gap"
+  consistency:
+    score: 82
+    evidence:
+      - "Naming conventions consistent (HIGH)"
+      - "File structure consistent across features (HIGH)"
+      - "BLoC pattern used throughout (HIGH)"
+    reasoning: "Highly consistent codebase"
+
+decision_log:
+  - id: "decision_001"
+    decision: "Recommend replacing get_it with injectable for DI"
+    reason: "get_it requires manual registration; injectable generates registrations"
+    evidence:
+      - source: "lib/core/di/injection.dart"
+        type: code
+        detail: "87 manual getIt.registerFactory calls"
+    alternatives:
+      - "Keep get_it — works, team knows it"
+      - "Use riverpod — different paradigm, bigger migration"
+    tradeoffs: "injectable adds code generation step but reduces boilerplate"
+    confidence: MEDIUM
+    overridden: false
+    override_reason: ""
+
+overrides: []

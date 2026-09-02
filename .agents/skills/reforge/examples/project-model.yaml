@@ -1,0 +1,404 @@
+# Example Project Model: TaskFlow
+# A fictional task management mobile app built with Flutter
+
+fingerprint:
+  project:
+    name: "taskflow"
+    type: mobile
+    framework: flutter
+    language: dart
+    framework_version: "3.22.0"
+    language_version: "3.4.0"
+  architecture:
+    pattern: feature_first
+    state_management: flutter_bloc
+    dependency_injection: get_it
+    navigation:
+      package: go_router
+      pattern: declarative
+  backend:
+    type: rest
+    base_url: "https://api.taskflow.app/v2"
+    auth_type: jwt
+  ui:
+    design_system: custom
+    theme: material3
+    dark_mode: supported
+  testing:
+    unit: true
+    widget: true
+    integration: false
+    e2e: false
+  platforms:
+    android: true
+    ios: true
+  stats:
+    source_files: 156
+    test_files: 38
+    total_dependencies: 24
+    total_screens: 10
+    total_features: 6
+  evidence:
+    - source: "pubspec.yaml"
+      type: config
+      detail: "Flutter 3.22, BLoC, GoRouter, get_it"
+  confidence: HIGH
+
+features:
+  - id: "feature_001"
+    name: "Task Management"
+    category: core
+    evidence:
+      - source: "lib/features/tasks/"
+        type: code
+        detail: "Full feature with data/domain/presentation layers"
+    confidence: HIGH
+    user_value: high
+    complexity: medium
+    maturity: complete
+    screens: ["screen_001", "screen_002", "screen_003"]
+    apis: ["/api/tasks"]
+    models: ["Task"]
+    dependencies: []
+
+  - id: "feature_002"
+    name: "Search"
+    category: core
+    evidence:
+      - source: "lib/features/search/"
+        type: code
+    confidence: HIGH
+    user_value: high
+    complexity: medium
+    maturity: complete
+    screens: ["screen_004"]
+    apis: ["/api/tasks/search"]
+    dependencies: ["feature_001"]
+
+  - id: "feature_003"
+    name: "Contacts"
+    category: secondary
+    evidence:
+      - source: "lib/features/contacts/"
+        type: code
+    confidence: HIGH
+    user_value: medium
+    complexity: low
+    maturity: complete
+    screens: ["screen_005", "screen_006"]
+    apis: ["/api/contacts"]
+    models: ["Contact"]
+
+  - id: "feature_004"
+    name: "Push Notifications"
+    category: secondary
+    evidence:
+      - source: "lib/services/notification_service.dart"
+        type: code
+        detail: "Service exists but partially wired"
+    confidence: MEDIUM
+    user_value: medium
+    complexity: medium
+    maturity: partial
+
+screens:
+  - id: "screen_001"
+    name: "TaskListScreen"
+    file: "lib/features/tasks/presentation/screens/task_list_screen.dart"
+    purpose: "Display and manage task list"
+    type: full_page
+    feature_id: "feature_001"
+    entry_points:
+      - from: "launcher"
+        trigger: "app start"
+        route: "/tasks"
+    exit_points:
+      - to: "screen_002"
+        trigger: "task card tap"
+        type: action
+      - to: "screen_003"
+        trigger: "FAB tap"
+        type: action
+    components:
+      - type: AppBar
+        name: "TaskAppBar"
+      - type: ListView
+        name: "TaskListView"
+      - type: FloatingActionButton
+    data_fields:
+      - name: "tasks"
+        type: "List<Task>"
+    states: ["initial", "loading", "loaded", "empty", "error"]
+    evidence:
+      - source: "lib/features/tasks/presentation/screens/task_list_screen.dart"
+        type: code
+    confidence: HIGH
+
+  - id: "screen_002"
+    name: "TaskDetailScreen"
+    file: "lib/features/tasks/presentation/screens/task_detail_screen.dart"
+    purpose: "View and manage single task"
+    type: full_page
+    feature_id: "feature_001"
+    entry_points:
+      - from: "screen_001"
+        trigger: "task card tap"
+        route: "/tasks/:id"
+    exit_points:
+      - to: "screen_001"
+        trigger: "back"
+        type: back
+    components:
+      - type: AppBar
+      - type: Card
+      - type: ActionButtons
+    states: ["loading", "loaded", "error"]
+    confidence: HIGH
+
+state_machines:
+  - screen_id: "screen_001"
+    state_model: "TaskListBloc"
+    states:
+      - name: "initial"
+        ui_shown: "LoadingIndicator"
+      - name: "loading"
+        ui_shown: "LoadingIndicator"
+      - name: "loaded"
+        ui_shown: "TaskCard list"
+        data: ["tasks: List<Task>"]
+      - name: "empty"
+        ui_shown: "EmptyStateWidget"
+      - name: "error"
+        ui_shown: "ErrorWidget"
+    transitions:
+      - from: "initial"
+        to: "loading"
+        trigger: "initState"
+      - from: "loading"
+        to: "loaded"
+        trigger: "TasksLoaded"
+      - from: "loading"
+        to: "error"
+        trigger: "TaskError"
+      - from: "loading"
+        to: "empty"
+        trigger: "TasksLoaded (empty)"
+    edge_cases:
+      - scenario: "Network failure"
+        handling: "Error state with retry"
+        coverage: complete
+      - scenario: "Token expiry"
+        handling: "Not handled"
+        coverage: missing
+    confidence: HIGH
+
+navigation:
+  entry_points:
+    - source: "launcher"
+      target: "screen_001"
+      route: "/tasks"
+  flows:
+    - name: "Task Flow"
+      screens: ["screen_001", "screen_002", "screen_003"]
+      entry: "screen_001"
+      linear: false
+  evidence:
+    - source: "lib/core/router/routes.dart"
+      type: config
+  confidence: HIGH
+
+design_system:
+  colors:
+    brand:
+      - name: "primary"
+        hex: "#1A73E8"
+      - name: "secondary"
+        hex: "#34A853"
+    semantic:
+      - name: "error"
+        hex: "#EA4335"
+      - name: "success"
+        hex: "#34A853"
+    neutral:
+      - name: "background"
+        hex: "#FFFFFF"
+      - name: "surface"
+        hex: "#F8F9FA"
+  typography:
+    scale:
+      - name: "headline"
+        size: 32
+        weight: bold
+      - name: "body"
+        size: 16
+        weight: regular
+      - name: "caption"
+        size: 12
+        weight: regular
+  spacing:
+    - name: "xs"
+      value: 4
+    - name: "sm"
+      value: 8
+    - name: "md"
+      value: 16
+    - name: "lg"
+      value: 24
+  evidence:
+    - source: "lib/core/theme/app_theme.dart"
+      type: code
+  confidence: HIGH
+
+architecture:
+  pattern: feature_first
+  modules:
+    - name: "tasks"
+      imports: ["shared", "core"]
+    - name: "search"
+      imports: ["shared", "core", "tasks"]
+    - name: "contacts"
+      imports: ["shared", "core"]
+    - name: "shared"
+      imports: ["core"]
+    - name: "core"
+      imports: []
+  circular_dependencies: []
+  state_management:
+    approach: "flutter_bloc"
+  networking:
+    client: "dio"
+    error_handling: "ErrorHandler interceptor"
+  persistence:
+    local_db: "hive"
+  di:
+    framework: "get_it"
+  testing:
+    levels:
+      unit: true
+      widget: true
+      integration: false
+  evidence:
+    - source: "lib/core/di/injection.dart"
+      type: code
+  confidence: HIGH
+
+product:
+  purpose: "Task management app for professionals tracking tasks, contacts, and deadlines"
+  target_users:
+    - "Sales professionals managing client tasks"
+    - "Freelancers tracking project work"
+  personas:
+    - name: "Sales Rep"
+      description: "Manages 50+ active tasks across clients"
+      goals: ["Quick task logging", "Daily overview", "Contact association"]
+      technical_level: medium
+      confidence: HIGH
+  feature_hierarchy:
+    core: ["feature_001", "feature_002"]
+    secondary: ["feature_003", "feature_004"]
+  evidence:
+    - source: "lib/data/models/task.dart"
+      type: code
+      detail: "Task model with title, dueDate, contact, priority"
+  confidence: HIGH
+
+product_dna:
+  interaction:
+    - task_oriented
+    - fast_completion
+    - swipe_actions
+  visual:
+    - professional
+    - data_dense
+    - color_coded_status
+  ux:
+    - progressive_disclosure
+    - low_friction
+    - undo_over_confirm
+  product:
+    - utility
+    - productivity
+  what_must_survive:
+    - "Speed — core flow must be fast"
+    - "Swipe interactions — users expect them"
+    - "Color-coded priority — visual scanning depends on it"
+  confidence: HIGH
+
+health:
+  architecture:
+    score: 78
+    evidence:
+      - "Clean feature boundaries (HIGH)"
+      - "No circular dependencies (HIGH)"
+      - "Consistent BLoC usage (HIGH)"
+    reasoning: "Strong architecture with good separation"
+  product:
+    score: 82
+    evidence:
+      - "Core features complete (HIGH)"
+      - "Push notifications partial (MEDIUM)"
+    reasoning: "Solid product, one incomplete feature"
+  ux:
+    score: 68
+    evidence:
+      - "Error states in 8/10 screens (HIGH)"
+      - "Empty states missing in 2 screens (MEDIUM)"
+      - "No accessibility labels (HIGH)"
+    reasoning: "Good error handling, accessibility gap"
+  ui:
+    score: 75
+    evidence:
+      - "Consistent design tokens (HIGH)"
+      - "Dark mode supported (HIGH)"
+      - "Some hardcoded colors (MEDIUM)"
+    reasoning: "Good design system, minor inconsistencies"
+  maintainability:
+    score: 65
+    evidence:
+      - "8 TODO comments (MEDIUM)"
+      - "Good naming (HIGH)"
+      - "Consistent structure (HIGH)"
+    reasoning: "Generally clean, accumulating minor debt"
+  testability:
+    score: 58
+    evidence:
+      - "38 tests / 156 files = 24% ratio (MEDIUM)"
+      - "Widget tests present (HIGH)"
+      - "No integration tests (HIGH)"
+    reasoning: "Decent foundation, coverage gaps"
+  documentation:
+    score: 42
+    evidence:
+      - "README exists but minimal (MEDIUM)"
+      - "No API docs (HIGH)"
+      - "Sparse code comments (MEDIUM)"
+    reasoning: "Documentation is a significant gap"
+  consistency:
+    score: 85
+    evidence:
+      - "Naming consistent (HIGH)"
+      - "Structure consistent (HIGH)"
+      - "BLoC pattern throughout (HIGH)"
+    reasoning: "Highly consistent codebase"
+
+contradictions:
+  - description: "README claims 'full test coverage' but only 24% file ratio"
+    claim_source: "README.md"
+    reality_source: "test/ directory (38 files)"
+    confidence: HIGH
+    impact: "Misleading documentation"
+    recommendation: "Update README to reflect actual coverage"
+
+dead_code:
+  - artifact: "lib/features/debug/"
+    type: screen
+    evidence: "No route, no navigation entry, only import is self-referencing"
+    confidence: MEDIUM
+    risk: "Low — debug feature, likely intentional"
+
+decision_log:
+  - id: "decision_001"
+    decision: "Keep get_it for DI (no migration recommended)"
+    reason: "Team is productive with get_it. Migration cost high, benefit low."
+    confidence: HIGH
+    overridden: false

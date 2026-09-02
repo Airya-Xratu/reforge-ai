@@ -1,0 +1,520 @@
+# Reforge Project Model
+# Canonical shared state for all sub-skills.
+# Each sub-skill reads relevant sections and writes its findings here.
+# File: reforge/project-model.yaml
+
+# ============================================================
+# EVIDENCE FORMAT (used throughout)
+# ============================================================
+# Every finding must include:
+#   evidence:
+#     - source: "file path or description"
+#       lines: "line range or null"
+#       type: "code | config | asset | documentation | git | inference"
+#     confidence: HIGH | MEDIUM | LOW
+#     reasoning: "brief explanation of how conclusion was reached"
+
+# ============================================================
+# SECTION 1: FINGERPRINT (project-archaeologist)
+# ============================================================
+fingerprint:
+  project:
+    name: ""
+    type: ""  # mobile | web | desktop | library | cli | api
+    framework: ""
+    language: ""
+    framework_version: ""
+    language_version: ""
+  
+  architecture:
+    pattern: ""  # feature_first | layer_first | clean | mvvm | mvc | redux | other
+    state_management: ""
+    dependency_injection: ""
+    navigation:
+      package: ""
+      pattern: ""  # declarative | imperative | hybrid
+  
+  backend:
+    type: ""  # rest | graphql | firebase | supabase | grpc | none
+    base_url: ""
+    auth_type: ""  # jwt | session | oauth | api_key | biometric | none
+  
+  ui:
+    design_system: ""  # material | cupertino | custom | hybrid
+    theme: ""
+    dark_mode: ""  # supported | not_supported | system_only
+    responsive: true
+  
+  testing:
+    unit: false
+    widget: false
+    integration: false
+    e2e: false
+    mocking_library: ""
+  
+  platforms:
+    android: false
+    ios: false
+    web: false
+    desktop: false
+  
+  stats:
+    source_files: 0
+    test_files: 0
+    total_dependencies: 0
+    total_screens: 0
+    total_features: 0
+  
+  evidence: []
+  confidence: HIGH | MEDIUM | LOW
+
+# ============================================================
+# SECTION 2: FEATURES (feature-mapper)
+# ============================================================
+features: []
+# Each entry:
+# - id: "feature_001"
+#   name: ""
+#   category: ""  # core | secondary | nice_to_have | admin
+#   evidence: []
+#   confidence: HIGH | MEDIUM | LOW
+#   user_value: high | medium | low
+#   complexity: high | medium | low
+#   maturity: complete | partial | stub | dead
+#   screens: ["screen_id_1", "screen_id_2"]
+#   apis: ["api_endpoint_1"]
+#   models: ["model_name_1"]
+#   dependencies: ["other_feature_id"]
+#   permissions: ["permission_name"]
+
+# ============================================================
+# SECTION 3: SCREENS (screen-analyzer)
+# ============================================================
+screens: []
+# Each entry:
+# - id: "screen_001"
+#   name: ""
+#   file: ""
+#   purpose: ""
+#   type: ""  # full_page | tab | modal | bottom_sheet | dialog | overlay
+#   feature_id: "feature_001"
+#   entry_points:
+#     - from: "screen_id or 'launcher' or 'deep_link' or 'notification'"
+#       trigger: ""
+#       route: ""
+#   exit_points:
+#     - to: "screen_id"
+#       trigger: ""
+#       type: ""  # back | action | link | deep_link
+#   layout: ""
+#   components: []
+#   data_fields: []
+#   actions: []
+#   permissions: []
+#   states: []
+#   platform_behavior: {}
+#   evidence: []
+#   confidence: HIGH | MEDIUM | LOW
+
+# ============================================================
+# SECTION 4: STATES (state-analyzer)
+# ============================================================
+state_machines: []
+# Each entry:
+# - screen_id: "screen_001"
+#   state_model: ""
+#   states:
+#     - name: ""
+#       description: ""
+#       ui_shown: ""
+#       data: []
+#   transitions:
+#     - from: ""
+#       to: ""
+#       trigger: ""
+#   edge_cases:
+#     - scenario: ""
+#       handling: ""
+#       coverage: complete | partial | missing
+#   evidence: []
+#   confidence: HIGH | MEDIUM | LOW
+
+shared_state: []
+# Each entry:
+# - name: ""
+#   scope: ""  # global | feature | screen
+#   states: []
+#   affects_screens: []
+#   persistence: ""  # in_memory | local_db | shared_preferences | secure_storage | server
+#   evidence: []
+
+# ============================================================
+# SECTION 5: NAVIGATION (feature-mapper)
+# ============================================================
+navigation:
+  entry_points: []
+  flows: []
+  deep_links: []
+  hidden_screens: []
+  back_behavior: ""
+  evidence: []
+
+# ============================================================
+# SECTION 6: UX (ux-analyst)
+# ============================================================
+ux:
+  information_architecture: ""
+  navigation_pattern: ""
+  interaction_patterns: []
+  onboarding_flow: ""
+  accessibility:
+    screen_reader: false
+    dynamic_text: false
+    reduced_motion: false
+    contrast: ""
+    evidence: []
+  friction_points: []
+  cognitive_load: ""
+  evidence: []
+  confidence: HIGH | MEDIUM | LOW
+
+# ============================================================
+# SECTION 7: UI / DESIGN SYSTEM (ui-analyst + design-system-extractor)
+# ============================================================
+design_system:
+  colors:
+    brand: []
+    semantic: []
+    neutral: []
+    dark_mode: []
+  typography:
+    families: []
+    scale: []
+  spacing: []
+  border_radius: []
+  elevation: []
+  icons:
+    style: ""
+    library: ""
+    sizes: []
+  components: []
+  evidence: []
+  confidence: HIGH | MEDIUM | LOW
+
+# ============================================================
+# SECTION 8: ARCHITECTURE (architecture-analyzer)
+# ============================================================
+architecture:
+  pattern: ""
+  modules: []
+  dependency_graph: {}
+  circular_dependencies: []
+  god_modules: []
+  orphan_modules: []
+  state_management:
+    approach: ""
+    stores: []
+  networking:
+    client: ""
+    interceptors: []
+    error_handling: ""
+    retry_logic: false
+    offline_handling: false
+  persistence:
+    local_db: ""
+    caching: false
+    encryption: false
+  auth:
+    type: ""
+    storage: ""
+    refresh: false
+    biometric: false
+  di:
+    framework: ""
+    scope: ""
+  testing:
+    levels: {}
+    coverage_estimate: ""
+  cicd:
+    provider: ""
+    stages: []
+  evidence: []
+  confidence: HIGH | MEDIUM | LOW
+
+# ============================================================
+# SECTION 9: DATA MODELS (architecture-analyzer)
+# ============================================================
+data_models: []
+# Each entry:
+# - name: ""
+#   file: ""
+#   fields:
+#     - name: ""
+#       type: ""
+#       required: false
+#       nullable: false
+#   relationships: []
+#   evidence: []
+
+# ============================================================
+# SECTION 10: API CONTRACTS (architecture-analyzer)
+# ============================================================
+api_contracts: []
+# Each entry:
+# - method: ""  # GET | POST | PUT | DELETE | PATCH
+#   path: ""
+#   purpose: ""
+#   auth_required: false
+#   request_fields: []
+#   response_fields: []
+#   pagination: ""  # cursor | offset | none
+#   evidence: []
+
+# ============================================================
+# SECTION 11: PERMISSIONS (mobile-analyzer)
+# ============================================================
+permissions: []
+# Each entry:
+# - name: ""
+#   platform: ""  # android | ios | both
+#   required_for: ""
+#   declared: false
+#   used_in_code: false
+#   evidence: []
+
+# ============================================================
+# SECTION 12: DEPENDENCIES (dependency-analyzer script)
+# ============================================================
+dependencies:
+  core: []
+  dev: []
+  unused: []
+  outdated: []
+  # Each entry:
+  # - name: ""
+  #   version: ""
+  #   imports_found: 0
+  #   likely_used: false
+
+# ============================================================
+# SECTION 13: CONTRADICTIONS (project-archaeologist)
+# ============================================================
+contradictions: []
+# Each entry:
+# - description: ""
+#   claim_source: ""
+#   reality_source: ""
+#   confidence: HIGH | MEDIUM | LOW
+#   impact: ""
+#   recommendation: ""
+
+# ============================================================
+# SECTION 14: DEAD CODE (project-archaeologist)
+# ============================================================
+dead_code: []
+# Each entry:
+# - artifact: ""
+#   type: ""  # screen | component | service | dependency | export | asset | documentation
+#   evidence: ""
+#   confidence: HIGH | MEDIUM | LOW
+#   risk: ""
+
+# ============================================================
+# SECTION 15: PRODUCT (product-analyst)
+# ============================================================
+product:
+  purpose: ""
+  target_users: []
+  personas: []
+  jobs_to_be_done: []
+  feature_hierarchy:
+    core: []
+    secondary: []
+    nice_to_have: []
+  business_goals: []
+  product_risks: []
+  opportunities: []
+  evidence: []
+  confidence: HIGH | MEDIUM | LOW
+
+# ============================================================
+# SECTION 16: PRODUCT DNA (product-analyst)
+# ============================================================
+product_dna:
+  interaction: []
+  visual: []
+  ux: []
+  product: []
+  what_must_survive: []
+  evidence: []
+
+# ============================================================
+# SECTION 17: GIT EVIDENCE (project-archaeologist, optional)
+# ============================================================
+git_evidence:
+  available: false
+  recent_changes: []
+  abandoned_features: []
+  frequent_files: []
+  architectural_evolution: ""
+  unstable_areas: []
+  # Each entry:
+  # - file: ""
+  #   change_count: 0
+  #   last_changed: ""
+  #   description: ""
+
+# ============================================================
+# SECTION 18: PROJECT HEALTH (health-analyzer)
+# ============================================================
+health:
+  architecture:
+    score: 0  # 0-100
+    evidence: []
+    reasoning: ""
+  product:
+    score: 0
+    evidence: []
+    reasoning: ""
+  ux:
+    score: 0
+    evidence: []
+    reasoning: ""
+  ui:
+    score: 0
+    evidence: []
+    reasoning: ""
+  maintainability:
+    score: 0
+    evidence: []
+    reasoning: ""
+  testability:
+    score: 0
+    evidence: []
+    reasoning: ""
+  documentation:
+    score: 0
+    evidence: []
+    reasoning: ""
+  consistency:
+    score: 0
+    evidence: []
+    reasoning: ""
+
+# ============================================================
+# SECTION 19: DECISION LOG
+# ============================================================
+decision_log: []
+# Each entry:
+# - id: "decision_001"
+#   decision: ""
+#   reason: ""
+#   evidence: []
+#   alternatives: []
+#   tradeoffs: ""
+#   confidence: HIGH | MEDIUM | LOW
+#   overridden: false
+#   override_reason: ""
+
+# ============================================================
+# SECTION 20: MOBILE PLATFORM (mobile-analyzer + forensics)
+# ============================================================
+platform:
+  # Framework-specific platform config
+  flutter: {}
+  # flutter:
+  #   pubspec: { name, version, description }
+  #   android: { min_sdk, target_sdk, compile_sdk, permissions, activities, signing, flavors }
+  #   ios: { deployment_target, bundle_id, permissions, url_schemes, pods }
+  #   platform_channels: []
+  #   generated_files: []
+  
+  android: {}
+  # android:
+  #   manifest: { permissions, activities, services, receivers, deep_links }
+  #   gradle: { compile_sdk, min_sdk, target_sdk, flavors, signing, dependencies }
+  #   resources: { themes, colors, strings, drawables }
+  #   navigation: { graph_file, destinations }
+  
+  ios: {}
+  # ios:
+  #   info_plist: { permissions, url_schemes, background_modes, transport_security }
+  #   project: { deployment_target, swift_version, targets, capabilities }
+  #   pods: { name, version }
+  #   spm: { name, url, version }
+  
+  react_native: {}
+  # react_native:
+  #   expo: { plugins, scheme, splash, icon }
+  #   platform_files: { ios_specific, android_specific }
+  #   native_modules: []
+  
+  # Platform-specific behavior classification
+  behavior_classification: []
+  # Each entry:
+  # - behavior: ""
+  #   level: product | ios_specific | android_specific | framework_specific
+  #   evidence: []
+  #   confidence: HIGH | MEDIUM | LOW
+
+# ============================================================
+# SECTION 21: MOBILE JOURNEYS (mobile-ux-forensics)
+# ============================================================
+mobile_journeys: []
+# Each entry:
+# - id: "journey_001"
+#   name: ""
+#   trigger: ""
+#   goal: ""
+#   steps:
+#     - screen_id: ""
+#       action: ""
+#       gesture: ""  # scroll | swipe | long_press | tap | pull_refresh | drag | pinch
+#       feedback: ""  # haptic | animation | toast | dialog | none
+#       keyboard: null | visible | dismissed
+#       lifecycle: resumed | paused | inactive
+#   decisions:
+#     - step: 0
+#       question: ""
+#       options: []
+#   interruptions:
+#     - type: notification_received | phone_call | deep_link | background
+#       handling: ""
+#   errors:
+#     - type: network | auth | permission | timeout
+#       handling: ""
+#       screen_shown: ""
+#   recovery:
+#     - type: undo | retry | fallback
+#       action: ""
+#       time_window: ""
+#   completion:
+#     type: visual_feedback | navigation | toast
+#     details: ""
+#   abandonment:
+#     possible: true
+#     trigger: ""
+#     handling: ""
+
+# ============================================================
+# SECTION 22: MOBILE GESTURES (mobile-ux-forensics)
+# ============================================================
+mobile_gestures: []
+# Each entry:
+# - screen_id: ""
+#   gesture: "swipe_right | swipe_left | long_press | pull_to_refresh | pinch | double_tap | drag"
+#   component: ""
+#   action: ""
+#   feedback: ""
+#   evidence: []
+
+# ============================================================
+# SECTION 23: HUMAN OVERRIDES
+# ============================================================
+overrides: []
+# Each entry:
+# - target: "section or field path"
+#   original_value: ""
+#   override_value: ""
+#   reason: ""
+#   timestamp: ""

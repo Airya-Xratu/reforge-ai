@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# Reforge: Dead Code Analyzer Script
+# Detects unused exports, unreachable code, and orphaned files.
+# Usage: bash scripts/dead-code-analyzer [project_path]
+# Output: YAML report to stdout
+
+set -euo pipefail
+
+PROJECT_PATH="${1:-.}"
+cd "$PROJECT_PATH"
+
+echo "# Dead Code Analysis"
+echo ""
+
+# --- Flutter/Dart ---
+if [ -f "pubspec.yaml" ]; then
+  echo "## Flutter Dead Code"
+  echo ""
+
+  # Unused dart files (not imported anywhere)
+  echo "potential_orphan_files:"
+  for f in $(find lib/ -name "*.dart" -type f 2>/dev/null); do
+    FILENAME=$(basename "$f" .dart)
+    # Skip main.dart, generated files, and files with underscores (private)
+    [[ "$FILENAME" == "main" ]] && continue
+    [[ "$FILENAME" == *.g.dart ]] && continue
+    [[ "$FILENAME" == *.freezed.dart ]] && continue
+    [[ "$FILENAME" == *.mocks.dart ]] && continue
+
+    # Check if this file is imported anywhere
+    IMPORT_COUNT=$(grep -r "import.*$FILENAME" lib/ 2>/dev/null | grep -v "$f" | wc -l | tr -d ' ')
+    if [ "$IMPORT_COUNT" -eq 0 ]; then
+      echo "  - file: $f"
+      echo "    reason: not_imported"
+      echo "    confidence: MEDIUM"
+    fi
+  done | head -60
+  echo ""
+
+  # Unused exports
+  echo "unused_exports:"
+  for f in $(find lib/ -name "*.dart" -type f 2>/dev/null); do
+    # Find exported symbols
+    grep -n "^export " "$f" 2>/dev/null | while read -r line; do
+      EXPORTED=$(echo "$line" | grep -oP "export '([^']+)'" | sed "s/export '//;s/'//")
+      if [ -n "$EXPORTED" ]; then
+        # Resolve relative path
+        DIR=$(dirname "$f")
+        RESOLVED="$DIR/$EXPORTED"
+        if [ ! -f "$RESOLVED" ]; then
+          echo "  - file: $f"
+          echo "    broken_export: $EXPORTED"
+          echo "    confidence: HIGH"
+        fi
+      fi
+    done
+  done | head -30
+  echo ""
+
+  # TODO/FIXME/HACK comments
+  echo "todo_comments:"
+  grep -rn "TODO\|FIXME\|HACK\|XXX\|WORKAROUND" lib/ 2>/dev/null | \
+    grep -v ".g.dart" | grep -v ".freezed.dart" | \
+    sed 's/^/  - /' | head -30
+  echo ""
+fi
+
+# --- React Native / Node.js ---
+if [ -f "package.json" ]; then
+  echo "## React Native Dead Code"
+  echo ""
+
+  # Check for unused dependencies
+  echo "potentially_unused_packages:"
+  node -e "
+    const p = require('./package.json');
+    const deps = Object.keys(p.dependencies || {});
+    const fs = require('fs');
+    const path = require('path');
+
+    function checkDir(dir) {
+      if (!fs.existsSync(dir)) return '';
+      const files = fs.readdirSync(dir, {withFileTypes: true});
+      let content = '';
+      for (const f of files) {
+        if (f.isDirectory() && f.name !== 'node_modules' && f.name !== '.git') {
+          content += checkDir(path.join(dir, f.name));
+        } else if (f.isFile() && /\.(ts|tsx|js|jsx)$/.test(f.name)) {
+          content += fs.readFileSync(path.join(dir, f.name), 'utf8');
+        }
+      }
+      return content;
+    }
+
+    const srcContent = checkDir('src') + checkDir('app') + checkDir('lib');
+    for (const dep of deps) {
+      if (!srcContent.includes(dep)) {
+        console.log('  - name: ' + dep);
+        console.log('    reason: not_found_in_source');
+        console.log('    confidence: LOW');
+      }
+    }
+  " 2>/dev/null | head -40
+  echo ""
+
+  # Dead/unused source files
+  echo "potential_orphan_files:"
+  for f in $(find src/ app/ lib/ -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" 2>/dev/null | grep -v node_modules | grep -v __tests__); do
+    FILENAME=$(basename "$f")
+    [[ "$FILENAME" == "index.ts" || "$FILENAME" == "index.tsx" ]] && continue
+
+    IMPORT_COUNT=$(grep -r "$FILENAME" src/ app/ lib/ 2>/dev/null | grep -v "$f" | wc -l | tr -d ' ')
+    if [ "$IMPORT_COUNT" -eq 0 ]; then
+      echo "  - file: $f"
+      echo "    reason: not_imported"
+      echo "    confidence: MEDIUM"
+    fi
+  done | head -40
+  echo ""
+fi
+
+# --- Android ---
+if [ -d "app/src/main/java" ] || [ -d "app/src/main/kotlin" ]; then
+  echo "## Android Dead Code"
+  echo ""
+
+  SRC_DIR="app/src/main/java"
+  [ -d "app/src/main/kotlin" ] && SRC_DIR="app/src/main/kotlin"
+
+  # Unused layout files
+  echo "unused_layouts:"
+  for layout in $(find app/src/main/res/layout/ -name "*.xml" 2>/dev/null); do
+    LAYOUT_NAME=$(basename "$layout" .xml)
+    USAGE_COUNT=$(grep -r "$LAYOUT_NAME" "$SRC_DIR/" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$USAGE_COUNT" -eq 0 ]; then
+      echo "  - file: $layout"
+      echo "    reason: not_referenced_in_code"
+      echo "    confidence: HIGH"
+    fi
+  done | head -20
+  echo ""
+fi
+
+echo "# Dead code analysis complete."
+echo ""
+echo "# NOTE: All findings are probabilistic. Manual review recommended before deletion."

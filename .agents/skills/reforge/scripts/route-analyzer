@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# Reforge: Route Analyzer Script
+# Extracts routes and navigation from source code.
+# Usage: bash scripts/route-analyzer [project_path]
+# Output: YAML report to stdout
+
+set -euo pipefail
+
+PROJECT_PATH="${1:-.}"
+cd "$PROJECT_PATH"
+
+echo "# Route Analysis"
+echo ""
+
+# --- Flutter Routes ---
+if [ -f "pubspec.yaml" ]; then
+  echo "## Flutter Routes"
+  echo ""
+
+  # GoRouter
+  if grep -r "GoRoute\|GoRouter" lib/ 2>/dev/null | head -1 > /dev/null 2>&1; then
+    echo "router: go_router"
+    echo "routes:"
+    grep -rn "GoRoute\b" lib/ 2>/dev/null | \
+      grep -oP "path:\s*['\"]([^'\"]+)['\"]" | \
+      sed "s/path: /  - /" | \
+      sort -u | head -30
+    echo ""
+  fi
+
+  # AutoRoute
+  if grep -r "AutoRoute\|@AutoRouter" lib/ 2>/dev/null | head -1 > /dev/null 2>&1; then
+    echo "router: auto_route"
+    echo "routes:"
+    grep -rn "@AutoRoute\|AutoRoute(" lib/ 2>/dev/null | \
+      grep -oP "path:\s*['\"]([^'\"]+)['\"]" | \
+      sed "s/path: /  - /" | \
+      sort -u | head -30
+    echo ""
+  fi
+
+  # Navigator 1.0 push/pop
+  echo "navigator_pushes:"
+  grep -rn "Navigator\.\(push\|pushNamed\|pushReplacement\)" lib/ 2>/dev/null | \
+    sed 's/^/  - /' | \
+    head -30
+  echo ""
+
+  # Named routes
+  if grep -r "routes:" lib/ 2>/dev/null | head -1 > /dev/null 2>&1; then
+    echo "named_routes:"
+    grep -A 20 "routes:" lib/main.dart lib/app.dart lib/router.dart 2>/dev/null | \
+      grep -E "^\s+\w+:" | \
+      sed 's/^/  - /' | \
+      head -30
+    echo ""
+  fi
+
+  # Screens/Pages detection
+  echo "screen_files:"
+  find lib/ -name "*_screen.dart" -o -name "*_page.dart" -o -name "*Screen.dart" -o -name "*Page.dart" 2>/dev/null | \
+    sed 's/^/  - /' | \
+    sort | head -40
+  echo ""
+fi
+
+# --- React Native / Expo Routes ---
+if [ -f "package.json" ]; then
+  echo "## React Native Routes"
+  echo ""
+
+  # React Navigation
+  if grep -r "createStackNavigator\|createBottomTabNavigator\|Stack.Navigator\|Tab.Navigator" src/ app/ 2>/dev/null | head -1 > /dev/null 2>&1; then
+    echo "router: react_navigation"
+    echo "screens:"
+    grep -rn "name:" src/ app/ 2>/dev/null | \
+      grep -E "<(Stack|Tab|Drawer)\.Screen" -A 1 | \
+      grep "name=" | \
+      sed 's/.*name=//' | \
+      sed 's/[">].*//' | \
+      sort -u | head -30
+    echo ""
+  fi
+
+  # Expo Router
+  if [ -d "app/" ] && [ -f "app/_layout.tsx" -o -f "app/_layout.ts" -o -f "app/_layout.js" ]; then
+    echo "router: expo_router"
+    echo "routes:"
+    find app/ -name "*.tsx" -o -name "*.ts" -o -name "*.js" 2>/dev/null | \
+      grep -v "_layout" | \
+      sed 's/^app\//  - \//' | \
+      sed 's/\.\(tsx\|ts\|js\)$//' | \
+      sed 's/\/index$//' | \
+      sort | head -30
+    echo ""
+  fi
+
+  # Screen files
+  echo "screen_files:"
+  find src/ app/ -name "*Screen.tsx" -o -name "*Screen.ts" -o -name "*Screen.js" \
+    -o -name "*Page.tsx" -o -name "*Page.ts" -o -name "*Page.js" \
+    -o -name "*screen.tsx" -o -name "*screen.ts" -o -name "*screen.js" 2>/dev/null | \
+    grep -v node_modules | \
+    sed 's/^/  - /' | \
+    sort | head -40
+  echo ""
+fi
+
+# --- Android Navigation ---
+if [ -f "app/src/main/res/navigation/nav_graph.xml" ]; then
+  echo "## Android Navigation Graph"
+  echo ""
+  echo "destinations:"
+  grep -oP 'android:id="@\+id/[^"]*"' app/src/main/res/navigation/nav_graph.xml 2>/dev/null | \
+    sed 's/android:id="@+id\//  - /' | \
+    sed 's/"//' | head -30
+  echo ""
+fi
+
+echo "# Route analysis complete."

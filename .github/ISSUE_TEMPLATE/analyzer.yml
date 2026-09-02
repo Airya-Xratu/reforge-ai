@@ -1,0 +1,44 @@
+name: Analyzer Request
+description: Request a new analyzer or analysis capability
+labels: ["analyzer"]
+body:
+  - type: dropdown
+    id: ecosystem
+    attributes:
+      label: Ecosystem
+      options:
+        - Flutter
+        - Android
+        - iOS
+        - React Native
+        - Web
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: framework
+    attributes:
+      label: Framework
+      description: Specific framework within the ecosystem
+      placeholder: e.g., Jetpack Compose, SwiftUI, Next.js
+    validations:
+      required: true
+  - type: textarea
+    id: capability
+    attributes:
+      label: Analysis Capability
+      description: What should this analyzer extract or detect?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Expected Evidence
+      description: What source code patterns indicate this?
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Expected Output
+      description: What should appear in the Project Model?
